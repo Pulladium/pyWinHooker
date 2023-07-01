@@ -26,19 +26,20 @@ def on_mouse_event(event):
 
 
 def on_mouse_left_down(event):
-    global mouse_selecting, start_mouse_pos
-    # Записать начальную позицию мыши
+    global start_mouse_pos
+    print("Mouse left button pressed")  # Add this line
     start_mouse_pos = (event.Position[0], event.Position[1])
     return True
 
-
 def on_mouse_left_up(event):
-    global mouse_selecting, start_mouse_pos
+    global mouse_selecting
     # Записать конечную позицию мыши
     end_mouse_pos = (event.Position[0], event.Position[1])
 
     # Вычислить расстояние между начальной и конечной позициями
     distance = ((end_mouse_pos[0] - start_mouse_pos[0]) ** 2 + (end_mouse_pos[1] - start_mouse_pos[1]) ** 2) ** 0.5
+    print(f"Mouse left button released, distance: {distance}")
+
 
     # Получить горизонтальное разрешение экрана
     screen_width = win32api.GetSystemMetrics(0)
