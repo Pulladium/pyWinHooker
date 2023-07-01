@@ -62,7 +62,10 @@ def start_mouse_tracking():
     hook_manager.SubscribeMouseLeftUp(on_mouse_left_up)
 
     import pythoncom
-    pythoncom.PumpMessages()
+    # Start the hook event loop in a separate thread
+    hook_thread = threading.Thread(target=pythoncom.PumpMessages)
+    hook_thread.daemon = True
+    hook_thread.start()
 
     # Unhook the mouse when done
     hook_manager.UnhookMouse()
@@ -140,6 +143,5 @@ async def main():
         await asyncio.sleep(1)
 
 if __name__ == "__main__":
-
     start_mouse_tracking()
     asyncio.run(main())
