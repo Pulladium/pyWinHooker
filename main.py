@@ -70,13 +70,13 @@ def start_mouse_tracking():
     # Unhook the mouse when done
     hook_manager.UnhookMouse()
 
-
 mouse_tracking_thread = threading.Thread(target=start_mouse_tracking)
 mouse_tracking_thread.daemon = True
 mouse_tracking_thread.start()
 
 
 async def print_selected_text():
+    print("Checking for selected text")
     global mouse_selecting
     last_text = None
     selection_time = 0
@@ -95,6 +95,7 @@ async def print_selected_text():
             win32clipboard.CloseClipboard()
 
             # Press CTRL+C to copy the selected text to clipboard
+            print("Attempting to copy text")
             # Simulate CTRL+C (VK_CONTROL=0x11, VK_C=0x43)
             win32api.keybd_event(0x11, 0, 0, 0)  # Press CTRL
             win32api.keybd_event(0x43, 0, 0, 0)  # Press C
