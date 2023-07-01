@@ -133,6 +133,7 @@ async def print_selected_text():
 
 
 async def main():
+    print("Program started")
     asyncio.create_task(print_selected_text())
     while True:
         await asyncio.sleep(1)
