@@ -26,14 +26,14 @@ def on_mouse_event(event):
 
 
 def on_mouse_left_down(event):
-    global start_mouse_pos
     print("Mouse left button pressed")  # Add this line
+    global start_mouse_pos
     start_mouse_pos = (event.Position[0], event.Position[1])
     return True
 
 def on_mouse_left_up(event):
-    global mouse_selecting
-    # Записать конечную позицию мыши
+    print("Mouse left button released")  # Add this line
+    global mouse_selecting, start_mouse_pos
     end_mouse_pos = (event.Position[0], event.Position[1])
 
     # Вычислить расстояние между начальной и конечной позициями
@@ -132,11 +132,14 @@ async def print_selected_text():
                 last_print_time = current_time
 
 
+
 async def main():
     print("Program started")
     asyncio.create_task(print_selected_text())
     while True:
         await asyncio.sleep(1)
 
+if __name__ == "__main__":
 
-asyncio.run(main())
+    start_mouse_tracking()
+    asyncio.run(main())
