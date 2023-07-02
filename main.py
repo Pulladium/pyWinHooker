@@ -18,6 +18,8 @@ signal_queue = queue.Queue()
 start_mouse_pos = ()
 end_mouse_pos = ()
 
+MIN_MOUSE_DRAWN_DISTANCE = 10
+
 
 def on_mouse_left_down(event):
     try:
@@ -30,7 +32,8 @@ def on_mouse_left_down(event):
         print(f"Exception in on_mouse_left_down: {e}")
         return False
 
-def on_mouse_left_up(event, signal_queue):
+
+def on_mouse_left_up(event, signal_queue_got):
     try:
         print("Mouse left button released")
         global end_mouse_pos
@@ -44,9 +47,8 @@ def on_mouse_left_up(event, signal_queue):
             distance = ((end_mouse_pos[0] - start_mouse_pos[0]) ** 2 + (
                         end_mouse_pos[1] - start_mouse_pos[1]) ** 2) ** 0.5
             print(f"Distance: {distance:.2f}")
-            # Start the asynchronous task to print selected text
-            # Поместите сигнал в очередь
-            signal_queue.put(True)
+            if distance > MIN_MOUSE_DRAWN_DISTANCE:
+                signal_queue_got.put("text_selected")
 
         else:
             print("Mouse positions not captured properly")
@@ -56,7 +58,7 @@ def on_mouse_left_up(event, signal_queue):
         return False
 
 
-def start_mouse_tracking(signal_queue):
+def start_mouse_tracking(signal_queue_got):
     hook_manager = pyWinhook.HookManager()
     hook_manager.HookMouse()
 
@@ -64,7 +66,7 @@ def start_mouse_tracking(signal_queue):
         if callable(on_mouse_left_down) and callable(on_mouse_left_up):
             # Subscribe to left mouse down and up events
             hook_manager.MouseLeftDown = on_mouse_left_down
-            hook_manager.MouseLeftUp = partial(on_mouse_left_up, signal_queue=signal_queue)
+            hook_manager.MouseLeftUp = partial(on_mouse_left_up, signal_queue=signal_queue_got)
 
         else:
             print("on_mouse_left_down or on_mouse_left_up not callable")
@@ -79,67 +81,69 @@ def start_mouse_tracking(signal_queue):
     hook_manager.UnhookMouse()
 
 
-async def print_selected_text(signal_queue):
+async def print_selected_text(signal_queue_got):
     """Asynchronously print the selected text."""
     last_text = None
     selection_time = 0
     printed = False
     while not printed:
-        if not signal_queue.empty():
+        if not signal_queue_got.empty():
             # Извлеките сигнал из очереди
-            signal_queue.get()
-
-            # Wait for 0.1 second
-            await asyncio.sleep(0.1)
-            # Get the active window
-            active_window = gw.getActiveWindow()
-            # If there is an active window
-            if active_window:
-                # Press CTRL+C to copy the selected text to clipboard
-                win32api.keybd_event(0x11, 0, 0, 0)  # Press CTRL
-                win32api.keybd_event(0x43, 0, 0, 0)  # Press C
-                win32api.keybd_event(0x43, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release C
-                win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release CTRL
-
-                # Wait for the clipboard to update
+            signal = signal_queue_got.get()
+            if signal == "text_selected":
+                # Wait for 0.1 second
                 await asyncio.sleep(0.1)
+                # Get the active window
+                active_window = gw.getActiveWindow()
+                # If there is an active window
+                if active_window:
+                    # Press CTRL+C to copy the selected text to clipboard
+                    win32api.keybd_event(0x11, 0, 0, 0)  # Press CTRL
+                    win32api.keybd_event(0x43, 0, 0, 0)  # Press C
+                    win32api.keybd_event(0x43, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release C
+                    win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release CTRL
 
-                # Get the text from the clipboard
-                text = pyperclip.paste()
+                    # Wait for the clipboard to update
+                    await asyncio.sleep(0.1)
 
-                # Check if the text is the same as before
-                if text == last_text or last_text is None:
-                    # Increment the selection time
-                    selection_time += 1
-                else:
-                    # Reset the selection time and printed flag
-                    selection_time = 0
-                    printed = False
+                    # Get the text from the clipboard
+                    text = pyperclip.paste()
 
-                # Update the last text
-                last_text = text
+                    # Check if the text is the same as before
+                    if text == last_text or last_text is None:
+                        # Increment the selection time
+                        selection_time += 1
+                    else:
+                        # Reset the selection time and printed flag
+                        selection_time = 0
+                        printed = False
 
-                # If thetext has been selected for more than 2 seconds and not printed yet, print it
-                if selection_time >= 2 and not printed:
-                    # Print the application title
-                    print(f"Application: {active_window.title}")
-                    # Print the text
-                    print(f"Selected Text: {text}\n")
-                    # Set the printed flag to True
-                    printed = True
+                    # Update the last text
+                    last_text = text
 
+                    # If thetext has been selected for more than 2 seconds and not printed yet, print it
+                    if selection_time >= 2 and not printed:
+                        # Print the application title
+                        print(f"Application: {active_window.title}")
+                        # Print the text
+                        print(f"Selected Text: {text}\n")
+                        # Set the printed flag to True
+                        printed = True
+        await asyncio.sleep(1)
 
 
 async def main():
     """Main asynchronous function."""
     # Запуск отслеживания мыши в отдельном потоке
-    mouse_tracking_thread = threading.Thread(target=partial(start_mouse_tracking, signal_queue= signal_queue))
+    # target = partial(start_mouse_tracking, signal_queue=signal_queue)
+    mouse_tracking_thread = threading.Thread(target=start_mouse_tracking, args=(signal_queue,))
     mouse_tracking_thread.daemon = True  # Установите флаг daemon, чтобы поток завершился при завершении основной программы
     mouse_tracking_thread.start()
 
+    await print_selected_text(signal_queue)
     # Start the asynchronous task to print selected text
-    asyncio.create_task(print_selected_text(signal_queue))
-    await asyncio.sleep(1)
+    # asyncio.create_task(print_selected_text(signal_queue))
+    # await asyncio.sleep(1)
     # Keep the main function running
     while True:
         await asyncio.sleep(1)
