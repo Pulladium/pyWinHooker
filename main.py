@@ -1,148 +1,136 @@
 import asyncio
 import pygetwindow as gw
 import pyautogui
-import win32api
-import win32clipboard
-import pyWinhook
-import threading
+import pyperclip
 import time
-
-# Глобальный флаг для отслеживания выделения текста с помощью мыши
+import win32api
 import win32con
+import pyWinhook
 
-# Глобальные переменные для отслеживания позиции мыши
-start_mouse_pos = None
-mouse_selecting = False
+# Инициализация переменных позиции мыши
+from win32gui import PumpMessages
 
-
-def on_mouse_event(event):
-    global mouse_selecting
-    if event.MessageName == "mouse left down":
-        mouse_selecting = True
-    elif event.MessageName == "mouse left up":
-        mouse_selecting = False
-    return True
-
+start_mouse_pos = ()
+end_mouse_pos = ()
 
 
 def on_mouse_left_down(event):
-    print("Mouse left button pressed")  # Add this line
-    global start_mouse_pos
-    start_mouse_pos = (event.Position[0], event.Position[1])
-    return True
+    try:
+        print("Mouse left button pressed")
+        global start_mouse_pos
+        # Запомнить начальную позицию мыши
+        start_mouse_pos = (event.Position[0], event.Position[1])
+        return True
+    except Exception as e:
+        print(f"Exception in on_mouse_left_down: {e}")
+        return False
+
+
 
 def on_mouse_left_up(event):
-    print("Mouse left button released")  # Add this line
-    global mouse_selecting, start_mouse_pos
-    end_mouse_pos = (event.Position[0], event.Position[1])
+    try:
+        print("Mouse left button released")
+        global end_mouse_pos
+        # Запомнить конечную позицию мыши
+        end_mouse_pos = (event.Position[0], event.Position[1])
+        # Проверить, что позиции мыши были захвачены
+        if start_mouse_pos and end_mouse_pos:
+            # Вычислить расстояние между начальной и конечной позициями
+            distance = ((end_mouse_pos[0] - start_mouse_pos[0]) ** 2 + (
+                        end_mouse_pos[1] - start_mouse_pos[1]) ** 2) ** 0.5
+            print(f"Distance: {distance:.2f}")
+        else:
+            print("Mouse positions not captured properly")
+        return True
+    except Exception as e:
+        print(f"Exception in on_mouse_left_up: {e}")
+        return False
 
-    # Вычислить расстояние между начальной и конечной позициями
-    distance = ((end_mouse_pos[0] - start_mouse_pos[0]) ** 2 + (end_mouse_pos[1] - start_mouse_pos[1]) ** 2) ** 0.5
-    print(f"Mouse left button released, distance: {distance}")
-
-
-    # Получить горизонтальное разрешение экрана
-    screen_width = win32api.GetSystemMetrics(0)
-
-    # Вычислить среднюю ширину символа на экране (предположим, что средний символ занимает 1/80 ширины экрана)
-    char_width = screen_width / 80
-
-    # Если расстояние больше, чем ширина 3 символов, установить флаг
-    if distance > char_width * 3:
-        mouse_selecting = True
-    else:
-        mouse_selecting = False
-    return True
 
 def start_mouse_tracking():
     hook_manager = pyWinhook.HookManager()
+    hook_manager.HookMouse()
 
-    # Subscribe to left mouse down and up events
-    hook_manager.SubscribeMouseLeftDown(on_mouse_left_down)
-    hook_manager.SubscribeMouseLeftUp(on_mouse_left_up)
+    try:
+        if callable(on_mouse_left_down) and callable(on_mouse_left_up):
+            # Subscribe to left mouse down and up events
+            hook_manager.MouseLeftDown = on_mouse_left_down
+            hook_manager.MouseLeftUp = on_mouse_left_up
+        else:
+            print("on_mouse_left_down or on_mouse_left_up not callable")
+
+    except Exception as e:
+        print(f"Error in start_mouse_tracking: {e}")
 
     import pythoncom
-    # Start the hook event loop in a separate thread
-    hook_thread = threading.Thread(target=pythoncom.PumpMessages)
-    hook_thread.daemon = True
-    hook_thread.start()
-
+    PumpMessages()
     # Unhook the mouse when done
     hook_manager.UnhookMouse()
 
-mouse_tracking_thread = threading.Thread(target=start_mouse_tracking)
-mouse_tracking_thread.daemon = True
-mouse_tracking_thread.start()
-
 
 async def print_selected_text():
-    print("Checking for selected text")
-    global mouse_selecting
+    """Asynchronously print the selected text."""
     last_text = None
     selection_time = 0
-    last_print_time = 0
+    printed = False
 
     while True:
+        # Wait for 1 second
         await asyncio.sleep(1)
+        # Get the active window
         active_window = gw.getActiveWindow()
-        if active_window and mouse_selecting:
-            # Save the current clipboard content
-            win32clipboard.OpenClipboard()
-            try:
-                original_clipboard = win32clipboard.GetClipboardData()
-            except TypeError:
-                original_clipboard = None
-            win32clipboard.CloseClipboard()
-
+        # If there is an active window
+        if active_window:
             # Press CTRL+C to copy the selected text to clipboard
-            print("Attempting to copy text")
-            # Simulate CTRL+C (VK_CONTROL=0x11, VK_C=0x43)
             win32api.keybd_event(0x11, 0, 0, 0)  # Press CTRL
             win32api.keybd_event(0x43, 0, 0, 0)  # Press C
             win32api.keybd_event(0x43, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release C
             win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release CTRL
+
+            # Wait for the clipboard to update
             await asyncio.sleep(0.1)
 
             # Get the text from the clipboard
-            try:
-                win32clipboard.OpenClipboard()
-                try:
-                    text = win32clipboard.GetClipboardData()
-                except TypeError:
-                    text = None
-                win32clipboard.CloseClipboard()
-            except Exception as e:
-                print(f"Error: {e}")
+            text = pyperclip.paste()
 
-
-            # Restore the original clipboard content
-            win32clipboard.OpenClipboard()
-            win32clipboard.EmptyClipboard()
-            if original_clipboard is not None:
-                win32clipboard.SetClipboardText(original_clipboard)
-            win32clipboard.CloseClipboard()
-
+            # Check if the text is the same as before
             if text == last_text:
+                # Increment the selection time
                 selection_time += 1
             else:
+                # Reset the selection time and printed flag
                 selection_time = 0
+                printed = False
 
+            # Update the last text
             last_text = text
-            current_time = time.time()
 
-            if selection_time >= 2 and current_time - last_print_time > 2:
+            # If thetext has been selected for more than 2 seconds and not printed yet, print it
+            if selection_time >= 2 and not printed:
+                # Print the application title
                 print(f"Application: {active_window.title}")
-                print(f"Selected Text: {text}\n")
-                last_print_time = current_time
 
+                # Print the text
+                print(f"Selected Text: {text}\n")
+
+                # Set the printed flag to True
+                printed = True
 
 
 async def main():
-    print("Program started")
+    """Main asynchronous function."""
+    # Start mouse tracking
+    start_mouse_tracking()
+
+    # Start the asynchronous task to print selected text
     asyncio.create_task(print_selected_text())
+
+    # Keep the main function running
     while True:
         await asyncio.sleep(1)
 
+
+# Run the main asynchronous function
 if __name__ == "__main__":
-    start_mouse_tracking()
+    print("Program started")
     asyncio.run(main())
