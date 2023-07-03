@@ -30,6 +30,7 @@ async def print_selected_text(signal_queue_got):
             await asyncio.sleep(0.1)
             # Get the active window
             active_window = gw.getActiveWindow()
+            active_window.Edit.Copy()
             # If there is an active window
             if active_window:
                 # Press CTRL+C to copy the selected text to clipboard
@@ -44,26 +45,11 @@ async def print_selected_text(signal_queue_got):
                 # Get the text from the clipboard
                 text = pyperclip.paste()
 
-                # Check if the text is the same as before
-                if text == last_text or last_text is None:
-                    # Increment the selection time
-                    selection_time += 1
-                else:
-                    # Reset the selection time and printed flag
-                    selection_time = 0
-                    printed = False
-
-                # Update the last text
-                last_text = text
-
-                # If thetext has been selected for more than 2 seconds and not printed yet, print it
-                if selection_time >= 2 and not printed:
-                    # Print the application title
-                    print(f"Application: {active_window.title}")
-                    # Print the text
-                    print(f"Selected Text: {text}\n")
-                    # Set the printed flag to True
-                    printed = True
+                print(f"Application: {active_window.title}")
+                # Print the text
+                print(f"Selected Text: {text}\n")
+                # Set the printed flag to True
+                printed = True
         await asyncio.sleep(1)
 
 async def main():
@@ -102,6 +88,7 @@ class MouseTracker:
                 distance = ((end_mouse_pos[0] - self.start_mouse_pos[0]) ** 2 + (end_mouse_pos[1] - self.start_mouse_pos[1]) ** 2) ** 0.5
                 if distance > MIN_MOUSE_DRAG_DISTANCE:
                     self.signal_queue.put_nowait('text_selected')
+                    print(f"Distance: {distance:.2f}")
                 self.start_mouse_pos = None
             await asyncio.sleep(0.1)
 
