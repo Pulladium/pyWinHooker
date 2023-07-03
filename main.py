@@ -11,6 +11,7 @@ import queue
 import pythoncom
 import pyautogui
 import pynput
+from pynput import mouse
 
 from functools import partial
 # Инициализация переменных позиции мыши
