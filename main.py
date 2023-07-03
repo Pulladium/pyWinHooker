@@ -14,6 +14,8 @@ import pynput
 from pynput import mouse
 
 from functools import partial
+
+from pywinauto import Application
 # Инициализация переменных позиции мыши
 from win32gui import PumpMessages
 
@@ -26,30 +28,21 @@ async def print_selected_text(signal_queue_got):
     while not printed:
         signal = await signal_queue_got.get()
         if signal == "text_selected":
-            # Wait for 0.1 second
-            await asyncio.sleep(0.1)
-            # Get the active window
+            # Получить активное окно
             active_window = gw.getActiveWindow()
-            active_window.Edit.Copy()
-            # If there is an active window
-            if active_window:
-                # Press CTRL+C to copy the selected text to clipboard
-                win32api.keybd_event(0x11, 0, 0, 0)  # Press CTRL
-                win32api.keybd_event(0x43, 0, 0, 0)  # Press C
-                win32api.keybd_event(0x43, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release C
-                win32api.keybd_event(0x11, 0, win32con.KEYEVENTF_KEYUP, 0)  # Release CTRL
-
-                # Wait for the clipboard to update
-                await asyncio.sleep(0.1)
-
-                # Get the text from the clipboard
-                text = pyperclip.paste()
-
-                print(f"Application: {active_window.title}")
-                # Print the text
-                print(f"Selected Text: {text}\n")
-                # Set the printed flag to True
-                printed = True
+            if active_window is not None:
+                try:
+                    # Получить приложение, связанное с активным окном
+                    app = Application().connect(handle=active_window._hWnd)
+                    # Попытаться получить текстовое поле активного окна
+                    text_field = app.window(handle=active_window._hWnd).children(control_type="Edit")[0]
+                    # Получить выделенный текст
+                    selected_text = text_field.get_selection_indices()
+                    print(f"Selected text: {selected_text}")
+                except IndexError:
+                    print("Text field not found in the active window.")
+                except Exception as e:
+                    print(f"An error occurred: {e}")
         await asyncio.sleep(1)
 
 async def main():
