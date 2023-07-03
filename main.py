@@ -10,6 +10,7 @@ import pyWinhook
 import queue
 import pythoncom
 import pyautogui
+import pynput
 
 from functools import partial
 # Инициализация переменных позиции мыши
