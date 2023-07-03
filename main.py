@@ -13,7 +13,7 @@ from functools import partial
 from win32gui import PumpMessages
 
 # Создать очередь
-signal_queue = queue.Queue()
+signal_queue_got = queue.Queue()
 
 start_mouse_pos = ()
 end_mouse_pos = ()
@@ -33,11 +33,11 @@ def on_mouse_left_down(event):
         return False
 
 
-def on_mouse_left_up(event, signal_queue_got):
+def on_mouse_left_up(event):
     try:
         print("Mouse left button released")
+        #+startr_mouse_pos)
         global end_mouse_pos
-
         # Запомнить конечную позицию мыши
 
         end_mouse_pos = (event.Position[0], event.Position[1])
@@ -49,6 +49,7 @@ def on_mouse_left_up(event, signal_queue_got):
             print(f"Distance: {distance:.2f}")
             if distance > MIN_MOUSE_DRAWN_DISTANCE:
                 signal_queue_got.put("text_selected")
+                print("Text selected")
 
         else:
             print("Mouse positions not captured properly")
@@ -58,7 +59,7 @@ def on_mouse_left_up(event, signal_queue_got):
         return False
 
 
-def start_mouse_tracking(signal_queue_got):
+def start_mouse_tracking():
     hook_manager = pyWinhook.HookManager()
     hook_manager.HookMouse()
 
@@ -66,7 +67,7 @@ def start_mouse_tracking(signal_queue_got):
         if callable(on_mouse_left_down) and callable(on_mouse_left_up):
             # Subscribe to left mouse down and up events
             hook_manager.MouseLeftDown = on_mouse_left_down
-            hook_manager.MouseLeftUp = partial(on_mouse_left_up, signal_queue=signal_queue_got)
+            hook_manager.MouseLeftUp = on_mouse_left_up
 
         else:
             print("on_mouse_left_down or on_mouse_left_up not callable")
@@ -81,7 +82,7 @@ def start_mouse_tracking(signal_queue_got):
     hook_manager.UnhookMouse()
 
 
-async def print_selected_text(signal_queue_got):
+async def print_selected_text():
     """Asynchronously print the selected text."""
     last_text = None
     selection_time = 0
@@ -136,11 +137,11 @@ async def main():
     """Main asynchronous function."""
     # Запуск отслеживания мыши в отдельном потоке
     # target = partial(start_mouse_tracking, signal_queue=signal_queue)
-    mouse_tracking_thread = threading.Thread(target=start_mouse_tracking, args=(signal_queue,))
+    mouse_tracking_thread = threading.Thread(target=start_mouse_tracking)
     mouse_tracking_thread.daemon = True  # Установите флаг daemon, чтобы поток завершился при завершении основной программы
     mouse_tracking_thread.start()
 
-    await print_selected_text(signal_queue)
+    await print_selected_text()
     # Start the asynchronous task to print selected text
     # asyncio.create_task(print_selected_text(signal_queue))
     # await asyncio.sleep(1)
