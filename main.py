@@ -80,16 +80,24 @@ class MouseTracker:
     def __init__(self, signal_queue):
         self.signal_queue = signal_queue
         self.start_mouse_pos = None
+        self.mouse_pressed = False
+
+    def on_click(self, x, y, button, pressed):
+        if button == mouse.Button.left:
+            self.mouse_pressed = pressed
 
     async def track_mouse(self):
+        # Listen to mouse events in a separate thread
+        mouse_listener = mouse.Listener(on_click=self.on_click)
+        mouse_listener.start()
+
         while True:
-            if pyautogui.mouseDown():
+            if self.mouse_pressed:
                 if self.start_mouse_pos is None:
                     self.start_mouse_pos = pyautogui.position()
             elif self.start_mouse_pos:
                 end_mouse_pos = pyautogui.position()
-                distance = ((end_mouse_pos[0] - self.start_mouse_pos[0]) ** 2 + (
-                            end_mouse_pos[1] - self.start_mouse_pos[1]) ** 2) ** 0.5
+                distance = ((end_mouse_pos[0] - self.start_mouse_pos[0]) ** 2 + (end_mouse_pos[1] - self.start_mouse_pos[1]) ** 2) ** 0.5
                 if distance > MIN_MOUSE_DRAG_DISTANCE:
                     self.signal_queue.put_nowait('text_selected')
                 self.start_mouse_pos = None
